@@ -4,16 +4,8 @@ import (
 	"fmt"
 	"gosshc/internal/config"
 	"gosshc/internal/services"
-	"os"
-	"os/signal"
-	"syscall"
+	"time"
 )
-
-func waitForInterrupt() {
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, syscall.SIGINT, syscall.SIGTERM)
-	<-c
-}
 
 func main() {
 
@@ -22,15 +14,22 @@ func main() {
 	ip := fmt.Sprintf("%s:%s", config.Ip, config.Port)
 
 	sshC := services.NewSshClient(ip, user, privKey)
+	for {
 
-	err := sshC.SetupReverseTunnel("localhost:8080", "localhost:8080")
-	if err != nil {
-		fmt.Println(err)
+		err := sshC.SetupReverseTunnel("localhost:8080", "localhost:8080")
+		if err != nil {
+			fmt.Println(err)
+			time.Sleep(5 * time.Second)
+			continue
+		}
+
+		fmt.Println("tunnel up")
+
+		err = <-sshC.ErrChan
+		fmt.Println("💥:", err)
+
+		sshC.Close()
+
 	}
-
-	fmt.Println("Túnel activo. Presiona Ctrl+C para salir.")
-	waitForInterrupt()
-
-	sshC.Close()
 
 }
