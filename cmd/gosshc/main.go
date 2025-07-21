@@ -4,9 +4,16 @@ import (
 	"fmt"
 	"gosshc/internal/config"
 	"gosshc/internal/services"
+	"os"
+	"os/signal"
+	"syscall"
 )
 
-const cmd = "cat /etc/shadow"
+func waitForInterrupt() {
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, syscall.SIGINT, syscall.SIGTERM)
+	<-c
+}
 
 func main() {
 
@@ -16,13 +23,13 @@ func main() {
 
 	sshC := services.NewSshClient(ip, user, privKey)
 
-	output, err := sshC.ExecCommand(cmd)
-
+	err := sshC.SetupReverseTunnel("localhost:8080", "localhost:8080")
 	if err != nil {
 		fmt.Println(err)
-	} else {
-		fmt.Println(output)
 	}
+
+	fmt.Println("Túnel activo. Presiona Ctrl+C para salir.")
+	waitForInterrupt()
 
 	sshC.Close()
 

@@ -2,7 +2,11 @@ package services
 
 import (
 	"fmt"
+	"io"
+	"log"
+	"net"
 	"strings"
+	"sync"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -115,4 +119,56 @@ func NewSshClient(addr, user string, privKey []byte) *SshClient {
 
 	return &sshC
 
+}
+
+func handleTunnel(remoteConn net.Conn, localAddr string) {
+
+	var wg sync.WaitGroup
+
+	localConn, err := net.Dial(_SSHTYPECONN, localAddr)
+	if err != nil {
+		log.Printf("Failed to connect to local service: %v", err)
+		remoteConn.Close()
+		return
+	}
+
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		io.Copy(localConn, remoteConn)
+	}()
+	go func() {
+		defer wg.Done()
+		io.Copy(remoteConn, localConn)
+	}()
+
+	wg.Wait()
+	localConn.Close()
+	remoteConn.Close()
+
+}
+
+func (sshC *SshClient) SetupReverseTunnel(remoteAddr, localAddr string) error {
+	conn, err := sshC.getConn()
+	if err != nil {
+		return err
+	}
+
+	listener, err := conn.Listen(_SSHTYPECONN, remoteAddr)
+	if err != nil {
+		return fmt.Errorf("failed to set up remote listener: %w", err)
+	}
+
+	go func() {
+		for {
+			remoteConn, err := listener.Accept()
+			if err != nil {
+				log.Printf("Tunnel accept error: %v", err)
+				continue
+			}
+			go handleTunnel(remoteConn, localAddr)
+		}
+	}()
+
+	return nil
 }
