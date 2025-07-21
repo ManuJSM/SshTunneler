@@ -1,0 +1,118 @@
+package services
+
+import (
+	"fmt"
+	"strings"
+	"time"
+
+	"golang.org/x/crypto/ssh"
+)
+
+const _SSHTYPECONN = "tcp"
+const _TCPTIMEOUT = 1 * time.Second
+
+type SshClient struct {
+	addr    string
+	user    string
+	privKey []byte
+	conn    *ssh.Client
+}
+
+func (sshC *SshClient) getAuthMethod() (ssh.AuthMethod, error) {
+
+	signer, err := ssh.ParsePrivateKey(sshC.privKey)
+	if err != nil {
+		return nil, err
+	}
+
+	return ssh.PublicKeys(signer), nil
+
+}
+
+func (sshC *SshClient) getConn() (conn *ssh.Client, err error) {
+
+	conn = sshC.conn
+
+	// se comprueba si ya esta establecida la conexion
+	if conn == nil {
+
+		var authMethod ssh.AuthMethod
+
+		authMethod, err = sshC.getAuthMethod()
+		if err != nil {
+			return
+		}
+
+		conn, err = ssh.Dial(_SSHTYPECONN, sshC.addr, &ssh.ClientConfig{
+			User:            sshC.user,
+			Auth:            []ssh.AuthMethod{authMethod},
+			HostKeyCallback: ssh.InsecureIgnoreHostKey(), // ⚠️ Conveniente cambiarlo y poner algun Known host
+			Timeout:         _TCPTIMEOUT,
+		})
+		if err != nil {
+			return
+		}
+		sshC.conn = conn
+	}
+
+	return
+
+}
+
+func (sshC *SshClient) getSession() (sess *ssh.Session, err error) {
+
+	var conn *ssh.Client
+
+	conn, err = sshC.getConn()
+	if err != nil {
+		return
+	}
+
+	sess, err = conn.NewSession()
+
+	return
+
+}
+
+func (sshC *SshClient) Close() error {
+	if sshC.conn != nil {
+		err := sshC.conn.Close()
+		sshC.conn = nil
+		return err
+	}
+	return nil
+}
+
+func (sshC *SshClient) ExecCommand(cmd string) (output string, err error) {
+
+	var session *ssh.Session
+
+	_out := new(strings.Builder)
+	_err := new(strings.Builder)
+
+	session, err = sshC.getSession()
+	if err != nil {
+		return
+	}
+
+	defer session.Close()
+
+	session.Stderr = _err
+	session.Stdout = _out
+
+	err = session.Run(cmd)
+	if err != nil {
+		err = fmt.Errorf("command failed: %w - stderr: %s", err, _err.String())
+		return
+	}
+	output = _out.String()
+	return
+}
+
+func NewSshClient(addr, user string, privKey []byte) *SshClient {
+
+	sshC := SshClient{addr: addr, user: user, privKey: privKey, conn: nil}
+
+	return &sshC
+
+}
