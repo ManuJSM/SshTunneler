@@ -12,11 +12,15 @@ func main() {
 	privKey := []byte(config.Id_rsa)
 	user := config.User
 	ip := fmt.Sprintf("%s:%s", config.Ip, config.Port)
+	const (
+		tunnelAddrLocal  = "localhost:8080"
+		tunnelAddrRemote = "localhost:8080"
+	)
 
 	sshC := services.NewSshClient(ip, user, privKey)
 	for {
 
-		err := sshC.SetupReverseTunnel("localhost:8080", "localhost:8080")
+		err := sshC.SetupReverseTunnel(tunnelAddrRemote, tunnelAddrLocal)
 		if err != nil {
 			fmt.Println(err)
 			time.Sleep(5 * time.Second)
@@ -26,7 +30,7 @@ func main() {
 		fmt.Println("tunnel up")
 
 		err = <-sshC.ErrChan
-		fmt.Println("💥:", err)
+		fmt.Println("💥: ", err)
 
 		sshC.Close()
 

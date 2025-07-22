@@ -62,7 +62,6 @@ func (sshC *SshClient) getConn() (conn *ssh.Client, err error) {
 		go func() {
 			for {
 				if !sshC.testConnection() {
-					sshC.Close()
 					sshC.ErrChan <- fmt.Errorf("error de conexion")
 					return
 				}
@@ -181,27 +180,25 @@ func (sshC *SshClient) SetupReverseTunnel(remoteAddr, localAddr string) error {
 	}
 
 	go func() {
+
+		defer func() {
+			listener.Close()
+			sshC.ErrChan <- fmt.Errorf("reverse tunnel 💥")
+		}()
+
 		for {
 			remoteConn, err := listener.Accept()
 			if err != nil {
-				log.Printf("Tunnel accept error: %v", err)
 				return
 			}
 			go handleTunnel(remoteConn, localAddr)
 		}
 	}()
-
 	return nil
-
 }
 
 func (sshC *SshClient) SetupLocalTunnel(remoteAddr, localAddr string) error {
 
-	// localServer, err := net.Listen(_SSHTYPECONN,localAddr)
-
-	// if err != nil {
-	// 	return  err
-	// }
 	return nil
 
 }
