@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"gosshc/internal/config"
 	"gosshc/internal/services"
+	"log"
 	"time"
 )
 
@@ -12,28 +13,41 @@ func main() {
 	privKey := []byte(config.Id_rsa)
 	user := config.User
 	ip := fmt.Sprintf("%s:%s", config.Ip, config.Port)
+	const _KEEPALIVETIMEOUT = 15 * time.Second
+
 	const (
 		tunnelAddrLocal  = "localhost:8080"
 		tunnelAddrRemote = "localhost:8080"
 	)
-
 	sshC := services.NewSshClient(ip, user, privKey)
+	ticker := time.NewTicker(_KEEPALIVETIMEOUT)
 	for {
 
 		err := sshC.SetupReverseTunnel(tunnelAddrRemote, tunnelAddrLocal)
 		if err != nil {
-			fmt.Println(err)
-			time.Sleep(5 * time.Second)
+			log.Println(err)
+			time.Sleep(_KEEPALIVETIMEOUT)
 			continue
 		}
 
-		fmt.Println("tunnel up")
+		log.Println("tunnel up")
 
-		err = <-sshC.ErrChan
-		fmt.Println("💥: ", err)
+		connection := true
 
-		sshC.Close()
+		for connection {
+			select {
+			case err := <-sshC.ErrChan:
+				log.Println(err)
+				connection = false
+			case <-ticker.C:
+				connection = sshC.TestConnection()
+				if !connection {
+					log.Println("conexion caida ):")
+				}
+			}
+		}
 
+		log.Println(sshC.Close())
 	}
 
 }

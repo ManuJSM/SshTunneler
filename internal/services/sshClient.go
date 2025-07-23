@@ -14,7 +14,6 @@ import (
 
 const _SSHTYPECONN = "tcp"
 const _TCPTIMEOUT = 1 * time.Second
-const _KEEPALIVETIMEOUT = 5 * time.Second
 
 type SshClient struct {
 	addr    string
@@ -33,6 +32,16 @@ func (sshC *SshClient) getAuthMethod() (ssh.AuthMethod, error) {
 
 	return ssh.PublicKeys(signer), nil
 
+}
+
+func limpiarCanal(errChan chan error) {
+	for {
+		select {
+		case <-errChan:
+		default:
+			return
+		}
+	}
 }
 
 func (sshC *SshClient) getConn() (conn *ssh.Client, err error) {
@@ -59,15 +68,7 @@ func (sshC *SshClient) getConn() (conn *ssh.Client, err error) {
 			return
 		}
 		sshC.conn = conn
-		go func() {
-			for {
-				if !sshC.testConnection() {
-					sshC.ErrChan <- fmt.Errorf("error de conexion")
-					return
-				}
-				time.Sleep(_KEEPALIVETIMEOUT)
-			}
-		}()
+		limpiarCanal(sshC.ErrChan)
 	}
 
 	return
@@ -90,6 +91,7 @@ func (sshC *SshClient) getSession() (sess *ssh.Session, err error) {
 }
 
 func (sshC *SshClient) Close() error {
+
 	if sshC.conn != nil {
 		err := sshC.conn.Close()
 		sshC.conn = nil
@@ -124,8 +126,8 @@ func (sshC *SshClient) ExecCommand(cmd string) (output string, err error) {
 	return
 }
 
-func (sshC *SshClient) testConnection() bool {
-	sess, err := sshC.conn.NewSession()
+func (sshC *SshClient) TestConnection() bool {
+	sess, err := sshC.getSession()
 	if err != nil {
 		return false
 	}
@@ -183,11 +185,12 @@ func (sshC *SshClient) SetupReverseTunnel(remoteAddr, localAddr string) error {
 
 		defer func() {
 			listener.Close()
-			sshC.ErrChan <- fmt.Errorf("reverse tunnel 💥")
+			sshC.ErrChan <- fmt.Errorf("reverse tunnel RIP: %s", err)
 		}()
 
 		for {
-			remoteConn, err := listener.Accept()
+			var remoteConn net.Conn
+			remoteConn, err = listener.Accept()
 			if err != nil {
 				return
 			}
