@@ -21,6 +21,7 @@ type SshClient struct {
 	privKey []byte
 	conn    *ssh.Client
 	ErrChan chan error
+	tunnels []net.Listener
 }
 
 func (sshC *SshClient) getAuthMethod() (ssh.AuthMethod, error) {
@@ -92,6 +93,11 @@ func (sshC *SshClient) getSession() (sess *ssh.Session, err error) {
 
 func (sshC *SshClient) Close() error {
 
+	for _, l := range sshC.tunnels {
+		l.Close()
+	}
+	sshC.tunnels = nil
+
 	if sshC.conn != nil {
 		err := sshC.conn.Close()
 		sshC.conn = nil
@@ -137,13 +143,13 @@ func (sshC *SshClient) TestConnection() bool {
 
 func NewSshClient(addr, user string, privKey []byte) *SshClient {
 
-	sshC := SshClient{addr: addr, user: user, privKey: privKey, conn: nil, ErrChan: make(chan error, 1)}
+	sshC := SshClient{addr: addr, user: user, privKey: privKey, conn: nil, tunnels: nil, ErrChan: make(chan error, 1)}
 
 	return &sshC
 
 }
 
-func handleTunnel(remoteConn net.Conn, localAddr string) {
+func handleReverseTunnel(remoteConn net.Conn, localAddr string) {
 
 	var wg sync.WaitGroup
 
@@ -172,6 +178,7 @@ func handleTunnel(remoteConn net.Conn, localAddr string) {
 
 func (sshC *SshClient) SetupReverseTunnel(remoteAddr, localAddr string) error {
 	conn, err := sshC.getConn()
+
 	if err != nil {
 		return err
 	}
@@ -194,13 +201,69 @@ func (sshC *SshClient) SetupReverseTunnel(remoteAddr, localAddr string) error {
 			if err != nil {
 				return
 			}
-			go handleTunnel(remoteConn, localAddr)
+			go handleReverseTunnel(remoteConn, localAddr)
 		}
 	}()
 	return nil
 }
 
+func handleLocalTunnel(remoteAddr string, localConn net.Conn, sshConn *ssh.Client) {
+
+	var wg sync.WaitGroup
+
+	remoteConn, err := sshConn.Dial(_SSHTYPECONN, remoteAddr)
+	if err != nil {
+		log.Printf("Failed to connect to remote service: %v", err)
+		localConn.Close()
+		return
+	}
+
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		io.Copy(localConn, remoteConn)
+	}()
+	go func() {
+		defer wg.Done()
+		io.Copy(remoteConn, localConn)
+	}()
+
+	wg.Wait()
+	localConn.Close()
+	remoteConn.Close()
+
+}
+
 func (sshC *SshClient) SetupLocalTunnel(remoteAddr, localAddr string) error {
+
+	if !sshC.TestConnection() {
+		return fmt.Errorf("no hay conexion con el host remoto :(")
+	}
+
+	listener, err := net.Listen(_SSHTYPECONN, localAddr)
+	if err != nil {
+		return err
+	}
+	sshC.tunnels = append(sshC.tunnels, listener)
+	go func() {
+		defer func() {
+			listener.Close()
+			sshC.ErrChan <- fmt.Errorf("local tunnel RIP: %s", err)
+		}()
+		for {
+			localConn, err := listener.Accept()
+			if err != nil {
+				return
+			}
+			conn, err := sshC.getConn()
+			if err != nil {
+				localConn.Close()
+				return
+			}
+			go handleLocalTunnel(remoteAddr, localConn, conn)
+
+		}
+	}()
 
 	return nil
 
