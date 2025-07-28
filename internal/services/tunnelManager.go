@@ -13,7 +13,6 @@ import (
 type TunnelManager interface {
 	SetupTunnels(tunnels []TunnelConfig) error
 	CloseAll() error
-	GetCurrentConf() []TunnelConfig
 }
 
 type TunnelConfig struct {
@@ -26,7 +25,6 @@ type tunnelManagerImpl struct {
 	conn       SSHConnection
 	activeTuns []net.Listener
 	monitor    ConnectionMonitor
-	cfg        []TunnelConfig
 }
 
 func NewTunnelManager(conn SSHConnection, mon ConnectionMonitor) TunnelManager {
@@ -43,10 +41,10 @@ func (tunM *tunnelManagerImpl) SetupTunnels(tunnels []TunnelConfig) error {
 			err = tunM.setupLocalTunnel(t.LocalAddr, t.RemoteAddr)
 		}
 		if err != nil {
+			tunM.CloseAll()
 			return err
 		}
 	}
-	tunM.cfg = tunnels
 	log.Println("Tunneles seteados")
 	return nil
 }
@@ -178,9 +176,4 @@ func (tunnM *tunnelManagerImpl) setupLocalTunnel(remoteAddr, localAddr string) e
 
 	return nil
 
-}
-
-func (tunnM *tunnelManagerImpl) GetCurrentConf() []TunnelConfig {
-
-	return tunnM.cfg
 }

@@ -10,7 +10,7 @@ import (
 type ConnectionMonitor interface {
 	Start()
 	Stop()
-	OnError() <-chan error
+	OnError() error
 	ReportError(err error)
 }
 
@@ -18,32 +18,30 @@ type monitorImpl struct {
 	conn    SSHConnection
 	errChan chan error
 	cancel  context.CancelFunc
+	ctx     context.Context
 }
 
 const _KEEPALIVETIMEOUT = 10 * time.Second
 
 func NewMonitor(conn SSHConnection) ConnectionMonitor {
+
+	ctx, cancel := context.WithCancel(context.Background())
 	return &monitorImpl{
 		conn:    conn,
 		errChan: make(chan error),
+		ctx:     ctx,
+		cancel:  cancel,
 	}
 }
 
 func (m *monitorImpl) Start() {
-
-	if m.cancel != nil {
-		return
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	m.cancel = cancel
+	// no compruebo que no se pueda ejecutar multiples veces pero bueno
 
 	go func() {
 		ticker := time.NewTicker(_KEEPALIVETIMEOUT)
 
 		defer func() {
 			ticker.Stop()
-			m.cancel = nil
 		}()
 
 		log.Println("Iniciado el Monitor")
@@ -54,7 +52,7 @@ func (m *monitorImpl) Start() {
 					m.ReportError(fmt.Errorf("connection lost, monitor stopped"))
 					return
 				}
-			case <-ctx.Done():
+			case <-m.ctx.Done():
 				log.Println("Monitor stopped Manually")
 				return
 			}
@@ -68,8 +66,17 @@ func (m *monitorImpl) Stop() {
 	}
 }
 
-func (m *monitorImpl) OnError() <-chan error {
-	return m.errChan
+func (m *monitorImpl) OnError() (err error) {
+
+	select {
+
+	case err = <-m.errChan:
+		return err
+	case <-m.ctx.Done():
+
+	}
+
+	return
 }
 
 func (m *monitorImpl) ReportError(err error) {

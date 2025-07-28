@@ -12,6 +12,7 @@ type SSHConnection interface {
 	Close() error
 	IsAlive() bool
 	Client() (*ssh.Client, error)
+	Session() (*ssh.Session, error)
 }
 
 type SSHConnectionImpl struct {
@@ -84,4 +85,8 @@ func (sshC *SSHConnectionImpl) Client() (*ssh.Client, error) {
 		return nil, fmt.Errorf("cliente esta Riperino capuchino ")
 	}
 	return sshC.conn, nil
+}
+
+func (sshC *SSHConnectionImpl) Session() (*ssh.Session, error) {
+	return sshC.conn.NewSession()
 }
