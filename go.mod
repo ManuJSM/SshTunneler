@@ -1,4 +1,4 @@
-module gosshc
+module github.com/ManuJSM/SshTunneler
 
 go 1.24.5
 

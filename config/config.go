@@ -14,6 +14,12 @@ var (
 	Port   string
 )
 
+type TunnelConfig struct {
+	LocalAddr  string
+	RemoteAddr string
+	Reverse    bool
+}
+
 func init() {
 
 	if err := godotenv.Load(); err != nil {

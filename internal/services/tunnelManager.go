@@ -7,18 +7,13 @@ import (
 	"net"
 	"sync"
 
+	"github.com/ManuJSM/SshTunneler/config"
 	"golang.org/x/crypto/ssh"
 )
 
 type TunnelManager interface {
-	SetupTunnels(tunnels []TunnelConfig) error
+	SetupTunnels(tunnels []config.TunnelConfig) error
 	CloseAll() error
-}
-
-type TunnelConfig struct {
-	LocalAddr  string
-	RemoteAddr string
-	Reverse    bool
 }
 
 type tunnelManagerImpl struct {
@@ -31,7 +26,7 @@ func NewTunnelManager(conn SSHConnection, mon ConnectionMonitor) TunnelManager {
 	return &tunnelManagerImpl{conn: conn, monitor: mon}
 }
 
-func (tunM *tunnelManagerImpl) SetupTunnels(tunnels []TunnelConfig) error {
+func (tunM *tunnelManagerImpl) SetupTunnels(tunnels []config.TunnelConfig) error {
 
 	for _, t := range tunnels {
 		var err error
