@@ -3,7 +3,6 @@ package SshTunneler
 import (
 	"fmt"
 
-	"github.com/ManuJSM/SshTunneler/config"
 	"github.com/ManuJSM/SshTunneler/internal/services"
 )
 
@@ -12,6 +11,7 @@ type Client struct {
 	tunnels services.TunnelManager
 	monitor services.ConnectionMonitor
 }
+type TunnelConfig = services.TunnelConfig
 
 // NewClient crea un nuevo cliente SSH con la conexión, el monitor y el manejador de túneles configurados.
 func NewClient(addr, user string, privKey []byte) *Client {
@@ -26,7 +26,7 @@ func NewClient(addr, user string, privKey []byte) *Client {
 }
 
 // ConnectAndSetup establece la conexión SSH y configura los túneles proporcionados.
-func (c *Client) ConnectAndSetup(tunnels ...config.TunnelConfig) error {
+func (c *Client) ConnectAndSetup(tunnels ...TunnelConfig) error {
 	if err := c.conn.Connect(); err != nil {
 		return err
 	}

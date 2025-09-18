@@ -7,7 +7,6 @@ A robust SSH client written in Go for creating and managing SSH tunnels with mon
 - ✅ SSH connection with private key authentication
 - ✅ Multiple SSH tunnel management
 - ✅ Real-time connection monitoring
-- ✅ DotEnv Configuration
 
 ---
 
@@ -31,10 +30,13 @@ var tunnels = []config.TunnelConfig{
 }
 
 func main() {
+	Ip := "localhost"
+	Port := "22"
+	Id_rsa := ""
+	user := "Pedro"
 
-	privKey := []byte(config.Id_rsa)
-	user := config.User
-	ip := fmt.Sprintf("%s:%s", config.Ip, config.Port)
+	privKey := []byte(Id_rsa)
+	ip := fmt.Sprintf("%s:%s", Ip, Port)
 
 	client := NewClient(ip, user, privKey)
   err := client.ConnectAndSetup(tunnels...)

@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/ManuJSM/SshTunneler"
-	"github.com/ManuJSM/SshTunneler/config"
 )
 
 const (
@@ -14,7 +13,7 @@ const (
 	tunnelAddrReverse = "localhost:8081"
 )
 
-var tunnels = []config.TunnelConfig{
+var tunnels = []SshTunneler.TunnelConfig{
 	{LocalAddr: tunnelAddrLocal, RemoteAddr: tunnelAddrLocal, Reverse: false},
 	{LocalAddr: tunnelAddrReverse, RemoteAddr: tunnelAddrReverse, Reverse: true},
 }
@@ -23,9 +22,14 @@ const RECONNTIMEOUT = 3 * time.Second
 
 func TestClient(t *testing.T) {
 
-	privKey := []byte(config.Id_rsa)
-	user := config.User
-	ip := fmt.Sprintf("%s:%s", config.Ip, config.Port)
+	Ip := "localhost"
+	Port := "22"
+	Id_rsa := ""
+	User := "Pedro"
+
+	privKey := []byte(Id_rsa)
+	user := User
+	ip := fmt.Sprintf("%s:%s", Ip, Port)
 
 	sshC := SshTunneler.NewClient(ip, user, privKey)
 	err := sshC.ConnectAndSetup(tunnels...)
